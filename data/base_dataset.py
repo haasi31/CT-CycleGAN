@@ -78,10 +78,12 @@ def get_params(opt, size):
     return {'crop_pos': (x, y), 'flip': flip}
 
 
-def get_transform(opt, params=None, grayscale=False, method=transforms.InterpolationMode.BICUBIC, convert=True):
+def get_transform(opt, params=None, grayscale=False, ct_domain=False, method=transforms.InterpolationMode.BICUBIC, convert=True):
     transform_list = []
     if grayscale:
         transform_list.append(transforms.Grayscale(1))
+    if ct_domain:
+        transform_list.append(transforms.Lambda(lambda img: Image.fromarray((np.clip(np.array(img), -1000, 600) + 1000) / 1600)))
     if 'resize' in opt.preprocess:
         osize = [opt.load_size, opt.load_size]
         transform_list.append(transforms.Resize(osize, method))
@@ -89,7 +91,7 @@ def get_transform(opt, params=None, grayscale=False, method=transforms.Interpola
         transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.load_size, opt.crop_size, method)))
 
     if 'crop' in opt.preprocess:
-        if params is None:
+        if params is None or 'crop_pos' not in params:
             transform_list.append(transforms.RandomCrop(opt.crop_size))
         else:
             transform_list.append(transforms.Lambda(lambda img: __crop(img, params['crop_pos'], opt.crop_size)))
@@ -98,14 +100,14 @@ def get_transform(opt, params=None, grayscale=False, method=transforms.Interpola
         transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method)))
 
     if not opt.no_flip:
-        if params is None:
+        if params is None or 'flip' not in params:
             transform_list.append(transforms.RandomHorizontalFlip())
         elif params['flip']:
             transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
 
     if convert:
         transform_list += [transforms.ToTensor()]
-        if grayscale:
+        if grayscale or ct_domain:
             transform_list += [transforms.Normalize((0.5,), (0.5,))]
         else:
             transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]

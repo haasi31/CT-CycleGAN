@@ -136,7 +136,7 @@ class Visualizer():
                 images = []
                 idx = 0
                 for label, image in visuals.items():
-                    image_numpy = util.tensor2im(image)
+                    image_numpy = util.tensor2im(image, imtype=np.uint8)
                     label_html_row += '<td>%s</td>' % label
                     images.append(image_numpy.transpose([2, 0, 1]))
                     idx += 1
@@ -192,8 +192,11 @@ class Visualizer():
             # save images to the disk
             for label, image in visuals.items():
                 image_numpy = util.tensor2im(image)
+                image_numpy_int16 = util.tensor2im(image, imtype=np.int16)
                 img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
+                img_path_int16 = os.path.join(self.img_dir, 'epoch%.3d_%s.tiff' % (epoch, label))
                 util.save_image(image_numpy, img_path)
+                util.save_image(image_numpy_int16.squeeze(), img_path_int16)
 
             # update website
             webpage = html.HTML(self.web_dir, 'Experiment name = %s' % self.name, refresh=1)
