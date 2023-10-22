@@ -8,6 +8,7 @@ import torch.utils.data as data
 
 from PIL import Image
 import os
+import glob
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -20,16 +21,23 @@ def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
 
-def make_dataset(dir, max_dataset_size=float("inf")):
+def make_dataset(dir, max_dataset_size=float("inf"), mask=False):
     images = []
+    masks = []
     assert os.path.isdir(dir), '%s is not a valid directory' % dir
-
-    for root, _, fnames in sorted(os.walk(dir)):
-        for fname in fnames:
-            if is_image_file(fname):
-                path = os.path.join(root, fname)
-                images.append(path)
-    return images[:min(max_dataset_size, len(images))]
+    if mask:
+        images = sorted(glob.glob(os.path.join(dir, '*.tiff')))
+        masks = sorted(glob.glob(os.path.join(dir, '*.npy')))
+        images = images[:min(max_dataset_size, len(images))]
+        masks = masks[:min(max_dataset_size, len(images))]
+    else:
+        for root, _, fnames in sorted(os.walk(dir)):
+            for fname in fnames:
+                if is_image_file(fname):
+                    path = os.path.join(root, fname)
+                    images.append(path)
+        images = sorted(images[:min(max_dataset_size, len(images))])
+    return images, masks
 
 
 def default_loader(path):

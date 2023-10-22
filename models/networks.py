@@ -274,6 +274,23 @@ class GANLoss(nn.Module):
             else:
                 loss = prediction.mean()
         return loss
+    
+class IdentityLoss(nn.Module):
+    def __init__(self, loss_type='l1'):
+        super(IdentityLoss, self).__init__()
+        self.loss_type = loss_type
+        if loss_type == 'l1':
+            self.loss = nn.L1Loss()
+        elif loss_type == 'l2':
+            self.loss = nn.MSELoss()
+        else:
+            raise NotImplementedError('loss type %s not implemented' % loss_type)
+        
+    def __call__(self, input, target, mask=None):
+        if mask is not None:
+            input = input * mask
+            target = target * mask
+        return self.loss(input, target)
 
 
 def cal_gradient_penalty(netD, real_data, fake_data, device, type='mixed', constant=1.0, lambda_gp=10.0):

@@ -12,14 +12,15 @@ You need to implement the following functions:
     -- <__len__>: Return the number of images.
 """
 import os
-from data.base_dataset import BaseDataset, get_transform_sync
+from data.base_dataset import BaseDataset, get_transform, get_mask_transform, get_transform_sync
 from data.image_folder import make_dataset
 from PIL import Image
 import numpy as np
 import random
+import nibabel as nib
 
 
-class TiffDataset(BaseDataset):
+class NiftiDataset(BaseDataset):
     """A template dataset class for you to implement custom datasets."""
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -34,6 +35,10 @@ class TiffDataset(BaseDataset):
         """
         #parser.add_argument('--new_dataset_option', type=float, default=1.0, help='new dataset option')
         #parser.set_defaults(max_dataset_size=10, new_dataset_option=2.0)  # specify dataset-specific default values
+        parser.add_argument('--vol_A_path', type=str, default='/home/ahaas/airway-seg/vessel_graph_generation/datasets/dataset_4/images/20230907_195116_1fe7dfb7-1f40-4b41-97bf-b1f7b6c0b4ad_volume.nii.gz', help='path to volume A')
+        parser.add_argument('--vol_B_path', type=str, default='/home/shared/Data/ATM22/train/images/ATM_253_0000.nii.gz', help='path to volume B')
+        parser.add_argument('--mask_A_path', type=str, default='/home/ahaas/data/ATM22_masks/ATM_253_0000_mask_lobes.nii.gz', help='path to mask A')
+        parser.add_argument('--mask_B_path', type=str, default='/home/ahaas/data/ATM22_masks/ATM_253_0000_mask_lobes.nii.gz', help='path to mask B')
         return parser
 
     def __init__(self, opt):
@@ -50,17 +55,17 @@ class TiffDataset(BaseDataset):
         # save the option and dataset root
         BaseDataset.__init__(self, opt)
         
-        self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
-        self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
+        self.vol_A = nib.load(opt.vol_A_path).get_fdata()
+        self.vol_B = nib.load(opt.vol_B_path).get_fdata()
+        self.mask_A = nib.load(opt.mask_A_path).get_fdata()
+        self.mask_B = nib.load(opt.mask_B_path).get_fdata()
         
-        self.A_paths, self.A_mask_paths = make_dataset(self.dir_A, opt.max_dataset_size, mask=True)  # load images from '/path/to/data/trainA'
-        self.B_paths, self.B_mask_paths = make_dataset(self.dir_B, opt.max_dataset_size, mask=True)  # load images from '/path/to/data/trainB'
+        self.A_size = self.vol_A.shape[-1] # get the size of dataset A
+        self.B_size = self.vol_B.shape[-1]  # get the size of dataset B     
         
-        self.A_size = len(self.A_paths)  # get the size of dataset A
-        self.B_size = len(self.B_paths)  # get the size of dataset B     
+        self.transform_A = get_transform_sync(self.opt, ct_domain=True)
+        self.transform_B = get_transform_sync(self.opt, ct_domain=True)
         
-        self.transform_A = get_transform_sync(self.opt, ct_domain=True) #, params={'crop_pos': (127, 127)})
-        self.transform_B = get_transform_sync(self.opt, ct_domain=True) #, params={'crop_pos': (127, 127)})   
         
 
     def __getitem__(self, index):
@@ -77,21 +82,23 @@ class TiffDataset(BaseDataset):
         Step 3: convert your data to a PyTorch tensor. You can use helpder functions such as self.transform. e.g., data = self.transform(image)
         Step 4: return a data point as a dictionary.
         """
-        index_A = index % self.A_size # make sure index is within then range
+        
+        index_A = index % self.A_size
         if self.opt.serial_batches:   # make sure index is within then range
             index_B = index % self.B_size
         else:   # randomize the index for domain B to avoid fixed pairs.
             index_B = random.randint(0, self.B_size - 1)
-        A_path = self.A_paths[index_A]      
-        B_path = self.B_paths[index_B]
-        A_data = {'image': Image.open(A_path), 'mask': Image.fromarray(np.load(self.A_mask_paths[index_A])*255, mode='L')}
-        B_data = {'image': Image.open(B_path), 'mask': Image.fromarray(np.load(self.B_mask_paths[index_B])*255, mode='L')}
+
+        A_data = {'image': Image.fromarray(self.vol_A[:, :, index_A]), 
+                  'mask': Image.fromarray(((self.mask_A[:, :, index_A] >= 1)*255).astype(np.uint8), mode='L')}
+        B_data = {'image': Image.fromarray(self.vol_B[:, :, index_B]), 
+                  'mask': Image.fromarray(((self.mask_B[:, :, index_B] >= 1)*255).astype(np.uint8), mode='L')}
         A_data = self.transform_A(A_data)
         B_data = self.transform_B(B_data)
         A, A_mask = A_data['image'], A_data['mask']
         B, B_mask = B_data['image'], B_data['mask']
         
-        return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path, 'A_mask': A_mask, 'B_mask': B_mask}
+        return {'A': A, 'B': B, 'A_paths': f'{index_A:04d}.tiff', 'B_paths': f'{index_B:04d}.tiff', 'A_mask': A_mask, 'B_mask': B_mask}
 
     def __len__(self):
         """Return the total number of images."""

@@ -42,6 +42,10 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256, use_w
         image_name = '%s_%s.png' % (name, label)
         save_path = os.path.join(image_dir, image_name)
         util.save_image(im, save_path, aspect_ratio=aspect_ratio)
+        if 'diff' not in label and 'mask' not in label: # diff and mask do not need to be saved as int16
+            im_int16 = util.tensor2im(im_data, imtype=np.int16)
+            save_path_int16 = os.path.join(image_dir, '%s_%s.tiff' % (name, label))
+            util.save_image(im_int16.squeeze(), save_path_int16, aspect_ratio=aspect_ratio)
         ims.append(image_name)
         txts.append(label)
         links.append(image_name)
@@ -192,11 +196,12 @@ class Visualizer():
             # save images to the disk
             for label, image in visuals.items():
                 image_numpy = util.tensor2im(image)
-                image_numpy_int16 = util.tensor2im(image, imtype=np.int16)
                 img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
-                img_path_int16 = os.path.join(self.img_dir, 'epoch%.3d_%s.tiff' % (epoch, label))
                 util.save_image(image_numpy, img_path)
-                util.save_image(image_numpy_int16.squeeze(), img_path_int16)
+                if 'diff' not in label and 'mask' not in label: # diff and mask do not need to be saved as int16
+                    image_numpy_int16 = util.tensor2im(image, imtype=np.int16)
+                    img_path_int16 = os.path.join(self.img_dir, 'epoch%.3d_%s.tiff' % (epoch, label))
+                    util.save_image(image_numpy_int16.squeeze(), img_path_int16)
 
             # update website
             webpage = html.HTML(self.web_dir, 'Experiment name = %s' % self.name, refresh=1)

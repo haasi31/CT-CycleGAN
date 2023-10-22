@@ -103,7 +103,12 @@ class BaseModel(ABC):
         """
         with torch.no_grad():
             self.forward()
+            self.postprocess()
             self.compute_visuals()
+    
+    def postprocess(self):
+        """Post-processing function applied to the output of the network"""
+        pass
 
     def compute_visuals(self):
         """Calculate additional output images for visdom and HTML visualization"""

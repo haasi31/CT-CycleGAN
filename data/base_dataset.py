@@ -7,6 +7,7 @@ import numpy as np
 import torch.utils.data as data
 from PIL import Image
 import torchvision.transforms as transforms
+import torchvision.transforms.functional as F
 from abc import ABC, abstractmethod
 
 
@@ -112,6 +113,69 @@ def get_transform(opt, params=None, grayscale=False, ct_domain=False, method=tra
         else:
             transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     return transforms.Compose(transform_list)
+
+def get_transform_sync(opt, params=None, grayscale=False, ct_domain=False, method=transforms.InterpolationMode.BICUBIC, convert=True):
+    transform_list = []
+    if ct_domain:
+        transform_list.append(transforms.Lambda(lambda x: {'image': Image.fromarray((np.clip(np.array(x['image']), -1000, 600) + 1000) / 1600),
+                                                           'mask': x['mask']}))
+    if 'crop' in opt.preprocess:
+        if params is None or 'crop_pos' not in params:
+            # transform_list.append(transforms.RandomCrop(opt.crop_size))
+            transform_list.append(RandomCrop_Sync(opt.crop_size))
+        else:
+            transform_list.append(transforms.Lambda(lambda x: {'image': __crop(x['image'], params['crop_pos'], opt.crop_size),
+                                                               'mask': __crop(x['mask'], params['crop_pos'], opt.crop_size)}))
+    if opt.preprocess == 'none':
+        transform_list.append(transforms.Lambda(lambda x: {'image': __make_power_2(x['image'], base=4, method=method),
+                                                           'mask': __make_power_2(x['mask'], base=4, method=method)}))
+        
+    if not opt.no_flip:
+        if params is None or 'flip' not in params:
+            transform_list.append(RandomHorizontalFlip_Sync())
+        elif params['flip']:
+            transform_list.append(transforms.Lambda(lambda x: {'image':__flip(x['image'], params['flip']),
+                                                               'mask': __flip(x['mask'], params['flip'])})) 
+    if convert:
+        transform_list.append(transforms.Lambda(lambda x: {'image': transforms.ToTensor()(x['image']),
+                                                           'mask': transforms.ToTensor()(x['mask'])}))
+        if grayscale or ct_domain:
+            transform_list.append(transforms.Lambda(lambda x: {'image': transforms.Normalize((0.5,), (0.5,))(x['image']),
+                                                               'mask': x['mask']}))
+        else:
+            transform_list.append(transforms.Lambda(lambda x: {'image': transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(x['image']),
+                                                               'mask': x['mask']}))
+    return transforms.Compose(transform_list)
+        
+
+class RandomCrop_Sync(object):
+    def __init__(self, crop_size):
+        self.crop_size = crop_size
+    
+    def __call__(self, x):
+        image = x['image']
+        mask = x['mask']
+        
+        top = random.randint(0, image.size[1] - self.crop_size)
+        left = random.randint(0, image.size[0] - self.crop_size)
+        image = F.crop(image, top, left, self.crop_size, self.crop_size)
+        mask = F.crop(mask, top, left, self.crop_size, self.crop_size)
+
+        return {'image': image, 'mask': mask}
+    
+    
+class RandomHorizontalFlip_Sync(object):
+    def __init__(self):
+        pass
+    
+    def __call__(self, x):
+        image = x['image']
+        mask = x['mask']
+        
+        if random.random() > 0.5:
+            image = F.hflip(image)
+            mask = F.hflip(mask)
+        return {'image': image, 'mask': mask}
 
 
 def __transforms2pil_resize(method):
