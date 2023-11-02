@@ -61,8 +61,8 @@ class CycleGANModel(BaseModel):
         if self.isTrain and self.opt.lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
             visual_names_A.append('idt_B')
             visual_names_B.append('idt_A')
-        visual_names_A += ['real_A_mask', 'diff_AB']
-        visual_names_B += ['real_B_mask', 'diff_BA']
+        visual_names_A += ['real_A_mask', 'diff_AB', 'diff_div_AB']
+        visual_names_B += ['real_B_mask', 'diff_BA', 'diff_div_BA']
 
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
@@ -103,6 +103,13 @@ class CycleGANModel(BaseModel):
             
     def compute_visuals(self):
         with torch.no_grad():
+            self.diff_div_AB = self.real_A - self.fake_B
+            self.diff_div_BA = self.real_B - self.fake_A
+            self.diff_div_AB = cm.seismic(self.diff_AB.cpu().numpy()[0]) * 2.0 - 1.0
+            self.diff_div_BA = cm.seismic(self.diff_BA.cpu().numpy()[0]) * 2.0 - 1.0
+            self.diff_div_AB = torch.from_numpy(self.diff_AB.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
+            self.diff_div_BA = torch.from_numpy(self.diff_BA.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
+            
             self.diff_AB = torch.abs(self.real_A - self.fake_B)
             self.diff_BA = torch.abs(self.real_B - self.fake_A)
             self.diff_AB = cm.viridis(self.diff_AB.cpu().numpy()[0]) * 2.0 - 1.0
