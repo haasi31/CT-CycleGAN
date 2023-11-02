@@ -23,9 +23,12 @@ from options.train_options import TrainOptions
 from data import create_dataset
 from models import create_model
 from util.visualizer import Visualizer
+import os
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
+    #assert os.path.exists(os.path.join(opt.checkpoints_dir, opt.name)) == False, f'checkpoint dir {os.path.join(opt.checkpoints_dir, opt.name)} already exists'
+    
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)

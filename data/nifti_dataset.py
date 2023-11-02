@@ -12,8 +12,7 @@ You need to implement the following functions:
     -- <__len__>: Return the number of images.
 """
 import os
-from data.base_dataset import BaseDataset, get_transform, get_mask_transform, get_transform_sync
-from data.image_folder import make_dataset
+from data.base_dataset import BaseDataset, get_transform_sync
 from PIL import Image
 import numpy as np
 import random

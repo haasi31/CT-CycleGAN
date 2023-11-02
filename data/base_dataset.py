@@ -122,7 +122,7 @@ def get_transform_sync(opt, params=None, grayscale=False, ct_domain=False, metho
     if 'crop' in opt.preprocess:
         if params is None or 'crop_pos' not in params:
             # transform_list.append(transforms.RandomCrop(opt.crop_size))
-            transform_list.append(RandomCrop_Sync(opt.crop_size))
+            transform_list.append(RandomCrop_Sync(opt.crop_size, normal=True))
         else:
             transform_list.append(transforms.Lambda(lambda x: {'image': __crop(x['image'], params['crop_pos'], opt.crop_size),
                                                                'mask': __crop(x['mask'], params['crop_pos'], opt.crop_size)}))
@@ -149,15 +149,20 @@ def get_transform_sync(opt, params=None, grayscale=False, ct_domain=False, metho
         
 
 class RandomCrop_Sync(object):
-    def __init__(self, crop_size):
+    def __init__(self, crop_size, normal=False):
         self.crop_size = crop_size
+        self.normal = normal
     
     def __call__(self, x):
         image = x['image']
         mask = x['mask']
         
-        top = random.randint(0, image.size[1] - self.crop_size)
-        left = random.randint(0, image.size[0] - self.crop_size)
+        if self.normal:
+            top = np.clip(np.random.normal(0.5, 0.25), 0, 1) * (image.size[1] - self.crop_size)
+            left = np.clip(np.random.normal(0.5, 0.25), 0, 1) * (image.size[0] - self.crop_size)
+        else:
+            top = random.randint(0, image.size[1] - self.crop_size)
+            left = random.randint(0, image.size[0] - self.crop_size)
         image = F.crop(image, top, left, self.crop_size, self.crop_size)
         mask = F.crop(mask, top, left, self.crop_size, self.crop_size)
 

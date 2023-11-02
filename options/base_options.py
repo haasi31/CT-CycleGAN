@@ -123,6 +123,7 @@ class BaseOptions():
             suffix = ('_' + opt.suffix.format(**vars(opt))) if opt.suffix != '' else ''
             opt.name = opt.name + suffix
 
+        # assert os.path.exists(os.path.join(opt.checkpoints_dir, opt.name)) == False, f'checkpoint dir {os.path.join(opt.checkpoints_dir, opt.name)} already exists'
         self.print_options(opt)
 
         # set gpu ids
