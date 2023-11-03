@@ -56,11 +56,11 @@ class CycleGANModel(BaseModel):
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'idt_AB', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'idt_BA']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
-        visual_names_A = ['real_A', 'fake_B', 'rec_A']
-        visual_names_B = ['real_B', 'fake_A', 'rec_B']
+        visual_names_A = ['vis_real_A', 'vis_fake_B', 'vis_rec_A']
+        visual_names_B = ['vis_real_B', 'vis_fake_A', 'vis_rec_B']
         if self.isTrain and self.opt.lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
-            visual_names_A.append('idt_B')
-            visual_names_B.append('idt_A')
+            visual_names_A.append('vis_idt_B')
+            visual_names_B.append('vis_idt_A')
         visual_names_A += ['real_A_mask', 'diff_AB', 'diff_div_AB']
         visual_names_B += ['real_B_mask', 'diff_BA', 'diff_div_BA']
 
@@ -101,24 +101,40 @@ class CycleGANModel(BaseModel):
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
             
+        self.pseudo3D = True if opt.dataset_mode == 'pseudo3d' else False
+        self.slices = opt.input_nc # self.slices = 3 if opt.dataset_mode == 'pseudo3d' else 5 if opt.dataset_mode == 'pseudo5d' else 1
+                  
     def compute_visuals(self):
         with torch.no_grad():
-            self.diff_div_AB = self.real_A - self.fake_B
-            self.diff_div_BA = self.real_B - self.fake_A
-            self.diff_div_AB = cm.seismic(self.diff_AB.cpu().numpy()[0]) * 2.0 - 1.0
-            self.diff_div_BA = cm.seismic(self.diff_BA.cpu().numpy()[0]) * 2.0 - 1.0
-            self.diff_div_AB = torch.from_numpy(self.diff_AB.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
-            self.diff_div_BA = torch.from_numpy(self.diff_BA.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
+            # if self.pseudo3D:
+            middle_slice = self.slices // 2
+            self.vis_real_A = self.real_A[:, middle_slice, :, :].unsqueeze(dim=1)
+            self.vis_fake_B = self.fake_B[:, middle_slice, :, :].unsqueeze(dim=1)
+            self.vis_real_B = self.real_B[:, middle_slice, :, :].unsqueeze(dim=1)
+            self.vis_fake_A = self.fake_A[:, middle_slice, :, :].unsqueeze(dim=1)
+            self.vis_rec_A = self.rec_A[:, middle_slice, :, :].unsqueeze(dim=1)
+            self.vis_rec_B = self.rec_B[:, middle_slice, :, :].unsqueeze(dim=1)
+            self.vis_idt_A = self.idt_A[:, middle_slice, :, :].unsqueeze(dim=1)
+            self.vis_idt_B = self.idt_B[:, middle_slice, :, :].unsqueeze(dim=1)
+        
+            self.diff_div_AB = self.vis_real_A - self.vis_fake_B
+            self.diff_div_BA = self.vis_real_B - self.vis_fake_A
+            self.diff_AB = torch.abs(self.diff_div_AB)
+            self.diff_BA = torch.abs(self.diff_div_BA)
             
-            self.diff_AB = torch.abs(self.real_A - self.fake_B)
-            self.diff_BA = torch.abs(self.real_B - self.fake_A)
+            self.diff_div_AB = cm.seismic(self.diff_div_AB.cpu().numpy()[0]) * 2.0 - 1.0
+            self.diff_div_BA = cm.seismic(self.diff_div_BA.cpu().numpy()[0]) * 2.0 - 1.0
+            self.diff_div_AB = torch.from_numpy(self.diff_div_AB.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
+            self.diff_div_BA = torch.from_numpy(self.diff_div_BA.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
+            
             self.diff_AB = cm.viridis(self.diff_AB.cpu().numpy()[0]) * 2.0 - 1.0
             self.diff_BA = cm.viridis(self.diff_BA.cpu().numpy()[0]) * 2.0 - 1.0
             self.diff_AB = torch.from_numpy(self.diff_AB.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
             self.diff_BA = torch.from_numpy(self.diff_BA.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
-            
-            self.real_A_mask = self.real_A_mask * 2.0 - 1.0
-            self.real_B_mask = self.real_B_mask * 2.0 - 1.0
+        
+            self.real_A_mask = self.real_A_mask[:, middle_slice, :, :].unsqueeze(dim=1) * 2.0 - 1.0
+            self.real_B_mask = self.real_B_mask[:, middle_slice, :, :].unsqueeze(dim=1) * 2.0 - 1.0
+                
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.

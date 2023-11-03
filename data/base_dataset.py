@@ -4,6 +4,7 @@ It also includes common transformation functions (e.g., get_transform, __scale_w
 """
 import random
 import numpy as np
+import torch
 import torch.utils.data as data
 from PIL import Image
 import torchvision.transforms as transforms
@@ -146,6 +147,41 @@ def get_transform_sync(opt, params=None, grayscale=False, ct_domain=False, metho
             transform_list.append(transforms.Lambda(lambda x: {'image': transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(x['image']),
                                                                'mask': x['mask']}))
     return transforms.Compose(transform_list)
+    
+    
+def get_3d_transform(opt, params=None, grayscale=False, ct_domain=False, method=transforms.InterpolationMode.BICUBIC, convert=True):
+    transform_list = []
+    transform_list.append(transforms.Lambda(lambda x: {'image': x['image'].transpose(2, 0, 1),
+                                                       'mask': x['mask'].transpose(2, 0, 1)}))
+    if ct_domain:
+        transform_list.append(transforms.Lambda(lambda x: {'image': (np.clip(x['image'], -1000, 600) + 1000) / 1600,
+                                                           'mask': x['mask']}))
+        
+    transform_list.append(transforms.Lambda(lambda x: {'image': torch.Tensor(x['image']),
+                                                           'mask': torch.Tensor(x['mask'])}))
+    if 'crop' in opt.preprocess:
+        if params is None or 'crop_pos' not in params:
+            # transform_list.append(transforms.RandomCrop(opt.crop_size))
+            transform_list.append(RandomCrop_Sync(opt.crop_size, normal=True))
+        else:
+            transform_list.append(transforms.Lambda(lambda x: {'image': __crop(x['image'], params['crop_pos'], opt.crop_size),
+                                                               'mask': __crop(x['mask'], params['crop_pos'], opt.crop_size)}))
+            
+    if not opt.no_flip:
+        if params is None or 'flip' not in params:
+            transform_list.append(RandomHorizontalFlip_Sync())
+        elif params['flip']:
+            transform_list.append(transforms.Lambda(lambda x: {'image':__flip(x['image'], params['flip']),
+                                                               'mask': __flip(x['mask'], params['flip'])})) 
+
+    if convert:
+        if grayscale or ct_domain:
+            transform_list.append(transforms.Lambda(lambda x: {'image': transforms.Normalize((0.5,), (0.5,))(x['image']),
+                                                               'mask': x['mask']}))
+        else:
+            transform_list.append(transforms.Lambda(lambda x: {'image': transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(x['image']),
+                                                               'mask': x['mask']}))
+    return transforms.Compose(transform_list)
         
 
 class RandomCrop_Sync(object):
@@ -178,8 +214,13 @@ class RandomHorizontalFlip_Sync(object):
         mask = x['mask']
         
         if random.random() > 0.5:
-            image = F.hflip(image)
-            mask = F.hflip(mask)
+            # flip horizontally
+            if isinstance(image, torch.Tensor):
+                image = torch.flip(image, [2])
+                mask = torch.flip(mask, [2])
+            elif isinstance(image, Image.Image):
+                image = F.hflip(image)
+                mask = F.hflip(mask)
         return {'image': image, 'mask': mask}
 
 
