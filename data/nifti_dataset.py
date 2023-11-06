@@ -12,7 +12,7 @@ You need to implement the following functions:
     -- <__len__>: Return the number of images.
 """
 import os
-from data.base_dataset import BaseDataset, get_transform_sync
+from data.base_dataset import BaseDataset, get_transform_sync, get_3d_transform
 from PIL import Image
 import numpy as np
 import random
@@ -38,6 +38,8 @@ class NiftiDataset(BaseDataset):
         parser.add_argument('--vol_B_path', type=str, default='/home/shared/Data/ATM22/train/images/ATM_253_0000.nii.gz', help='path to volume B')
         parser.add_argument('--mask_A_path', type=str, default='/home/ahaas/data/ATM22_masks/ATM_253_0000_mask_lobes.nii.gz', help='path to mask A')
         parser.add_argument('--mask_B_path', type=str, default='/home/ahaas/data/ATM22_masks/ATM_253_0000_mask_lobes.nii.gz', help='path to mask B')
+        parser.add_argument('--pseudo3d', action='store_true', help='if specified, pseudo3d is used')
+        # parser.add_argument('--slices', type=int, default=3, help='number of slices to use for pseudo3d')
         return parser
 
     def __init__(self, opt):
@@ -60,10 +62,17 @@ class NiftiDataset(BaseDataset):
         self.mask_B = nib.load(opt.mask_B_path).get_fdata()
         
         self.A_size = self.vol_A.shape[-1] # get the size of dataset A
-        self.B_size = self.vol_B.shape[-1]  # get the size of dataset B     
+        self.B_size = self.vol_B.shape[-1]  # get the size of dataset B   
+        self.pseudo3d = opt.pseudo3d  
         
-        self.transform_A = get_transform_sync(self.opt, ct_domain=True)
-        self.transform_B = get_transform_sync(self.opt, ct_domain=True)
+        if opt.pseudo3d:
+            self.transform_A = get_3d_transform(self.opt, ct_domain=True)
+            self.transform_B = get_3d_transform(self.opt, ct_domain=True)
+            self.adj = opt.input_nc // 2
+        else:
+            self.transform_A = get_transform_sync(self.opt, ct_domain=True)
+            self.transform_B = get_transform_sync(self.opt, ct_domain=True)
+            self.adj = 0
         
         
 
@@ -88,10 +97,14 @@ class NiftiDataset(BaseDataset):
         else:   # randomize the index for domain B to avoid fixed pairs.
             index_B = random.randint(0, self.B_size - 1)
 
-        A_data = {'image': Image.fromarray(self.vol_A[:, :, index_A]), 
-                  'mask': Image.fromarray(((self.mask_A[:, :, index_A] >= 1)*255).astype(np.uint8), mode='L')}
-        B_data = {'image': Image.fromarray(self.vol_B[:, :, index_B]), 
-                  'mask': Image.fromarray(((self.mask_B[:, :, index_B] >= 1)*255).astype(np.uint8), mode='L')}
+        if self.pseudo3d:
+            A_data = {'image': self.get_slices(self.vol_A, index_A, self.A_size), 'mask': self.get_slices(self.mask_A, index_A, self.A_size)}
+            B_data = {'image': self.get_slices(self.vol_B, index_B, self.B_size), 'mask': self.get_slices(self.mask_B, index_B, self.B_size)}
+        else:
+            A_data = {'image': Image.fromarray(self.vol_A[:, :, index_A]), 
+                    'mask': Image.fromarray(((self.mask_A[:, :, index_A] >= 1)*255).astype(np.uint8), mode='L')}
+            B_data = {'image': Image.fromarray(self.vol_B[:, :, index_B]), 
+                    'mask': Image.fromarray(((self.mask_B[:, :, index_B] >= 1)*255).astype(np.uint8), mode='L')}    
         A_data = self.transform_A(A_data)
         B_data = self.transform_B(B_data)
         A, A_mask = A_data['image'], A_data['mask']
@@ -102,3 +115,12 @@ class NiftiDataset(BaseDataset):
     def __len__(self):
         """Return the total number of images."""
         return max(self.A_size, self.B_size)
+
+
+    def get_slices(self, volume, index, size):
+        if index < self.adj:  # edge case, reflect slices
+            return np.concatenate((np.flip(volume[:, :, index+1:index+self.adj+1], axis=2), volume[:, :, index:index+self.adj+1]), axis=2)
+        if index > size - self.adj - 1:  # edge case, reflect slices
+            return np.concatenate((volume[:, :, index-self.adj:index+1], np.flip(volume[:, :, index-self.adj:index], axis=2)), axis=2)
+        else:
+            return volume[:, :, index-self.adj:index+self.adj+1]

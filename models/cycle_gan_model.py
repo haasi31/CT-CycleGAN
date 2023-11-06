@@ -114,16 +114,17 @@ class CycleGANModel(BaseModel):
             self.vis_fake_A = self.fake_A[:, middle_slice, :, :].unsqueeze(dim=1)
             self.vis_rec_A = self.rec_A[:, middle_slice, :, :].unsqueeze(dim=1)
             self.vis_rec_B = self.rec_B[:, middle_slice, :, :].unsqueeze(dim=1)
-            self.vis_idt_A = self.idt_A[:, middle_slice, :, :].unsqueeze(dim=1)
-            self.vis_idt_B = self.idt_B[:, middle_slice, :, :].unsqueeze(dim=1)
+            if self.isTrain and self.opt.lambda_identity > 0.0:
+                self.vis_idt_A = self.idt_A[:, middle_slice, :, :].unsqueeze(dim=1)
+                self.vis_idt_B = self.idt_B[:, middle_slice, :, :].unsqueeze(dim=1)
         
             self.diff_div_AB = self.vis_real_A - self.vis_fake_B
             self.diff_div_BA = self.vis_real_B - self.vis_fake_A
             self.diff_AB = torch.abs(self.diff_div_AB)
             self.diff_BA = torch.abs(self.diff_div_BA)
             
-            self.diff_div_AB = cm.seismic(self.diff_div_AB.cpu().numpy()[0]) * 2.0 - 1.0
-            self.diff_div_BA = cm.seismic(self.diff_div_BA.cpu().numpy()[0]) * 2.0 - 1.0
+            self.diff_div_AB = cm.seismic(torch.clamp(self.diff_div_AB, -1, 1).cpu().numpy()[0]) * 2.0 - 1.0
+            self.diff_div_BA = cm.seismic(torch.clamp(self.diff_div_BA, -1, 1).cpu().numpy()[0]) * 2.0 - 1.0
             self.diff_div_AB = torch.from_numpy(self.diff_div_AB.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
             self.diff_div_BA = torch.from_numpy(self.diff_div_BA.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
             
