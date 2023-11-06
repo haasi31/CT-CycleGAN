@@ -1,6 +1,7 @@
 #!/bin/bash
-name=idt0_size256 #no_noise #syn2CT_2_size512_idt0.5_masked
-dir=/home/ahaas/airway-seg/vessel_graph_generation/datasets/dataset_4/images #dataset_5_no_noise/images
+experiment_name="$1" #no_noise_idt0.1_size512 # idt0_size256 #no_noise #syn2CT_2_size512_idt0.5_masked
+dataset="$2" #dataset_5_no_noise
+dir="/home/ahaas/airway-seg/vessel_graph_generation/datasets/$dataset/images" #dataset_4/images #
 i=0
 num_files=$(ls -1 "$dir"/* | wc -l)
 
@@ -19,7 +20,7 @@ do
     echo "${i}/${num_files} | ATM: ${ATM} | ${path}"
     python test_nifti.py \
     --dataroot /home/ahaas/data/syn2CT_2 \
-    --name "$name" \
+    --name "$experiment_name" \
     --model cycle_gan \
     --dataset_mode nifti \
     --input_nc 1 \
