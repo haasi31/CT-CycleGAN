@@ -34,6 +34,8 @@ class Pseudo3DDataset(BaseDataset):
         """
         # parser.add_argument('--new_dataset_option', type=float, default=1.0, help='new dataset option')
         # parser.set_defaults(max_dataset_size=10, new_dataset_option=2.0)  # specify dataset-specific default values
+        parser.add_argument('--dataroot_A', type=str)
+        parser.add_argument('--dataroot_B', type=str)
         return parser
 
     def __init__(self, opt):
@@ -50,8 +52,12 @@ class Pseudo3DDataset(BaseDataset):
         # save the option and dataset root
         BaseDataset.__init__(self, opt)
         
-        self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
-        self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
+        if opt.dataroot_A is not None and opt.dataroot_B is not None:
+            self.dir_A = os.path.join(opt.dataroot_A, opt.phase + 'A')  # create a path '/path/to/data/trainA'
+            self.dir_B = os.path.join(opt.dataroot_B, opt.phase + 'B')
+        else:
+            self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
+            self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
         
         self.A_paths, self.A_mask_paths = make_3d_dataset(self.dir_A, opt.max_dataset_size)  # load images from '/path/to/data/trainA'
         self.B_paths, self.B_mask_paths = make_3d_dataset(self.dir_B, opt.max_dataset_size)  # load images from '/path/to/data/trainB'
@@ -84,12 +90,19 @@ class Pseudo3DDataset(BaseDataset):
             index_B = random.randint(0, self.B_size - 1)
         A_path = self.A_paths[index_A]      
         B_path = self.B_paths[index_B]
+        assert A_path.split('/')[-1].split('.')[0] == self.A_mask_paths[index_A].split('/')[-1].split('.')[0], 'image and mask do not match'
+        assert B_path.split('/')[-1].split('.')[0] == self.B_mask_paths[index_B].split('/')[-1].split('.')[0], 'image and mask do not match'
+        
         A_data = {'image': np.load(A_path), 'mask': np.load(self.A_mask_paths[index_A])}
         B_data = {'image': np.load(B_path), 'mask': np.load(self.B_mask_paths[index_B])}
+        assert A_data['image'].shape == A_data['mask'].shape, 'image and mask shape do not match'
+        
         A_data = self.transform_A(A_data)
         B_data = self.transform_B(B_data)
         A, A_mask = A_data['image'], A_data['mask']
         B, B_mask = B_data['image'], B_data['mask']
+        # assert shape of A is equal to crop size
+        assert A.shape == (self.opt.input_nc, self.opt.crop_size, self.opt.crop_size), 'A shape is not equal to crop size'
         
         return {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path, 'A_mask': A_mask, 'B_mask': B_mask}
 

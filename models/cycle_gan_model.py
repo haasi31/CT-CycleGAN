@@ -61,8 +61,8 @@ class CycleGANModel(BaseModel):
         if self.isTrain and self.opt.lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
             visual_names_A.append('vis_idt_B')
             visual_names_B.append('vis_idt_A')
-        visual_names_A += ['real_A_mask', 'diff_AB', 'diff_div_AB']
-        visual_names_B += ['real_B_mask', 'diff_BA', 'diff_div_BA']
+        visual_names_A += ['real_A_mask', 'diff_AB']
+        visual_names_B += ['real_B_mask', 'diff_BA']
 
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
@@ -118,15 +118,15 @@ class CycleGANModel(BaseModel):
                 self.vis_idt_A = self.idt_A[:, middle_slice, :, :].unsqueeze(dim=1)
                 self.vis_idt_B = self.idt_B[:, middle_slice, :, :].unsqueeze(dim=1)
         
-            self.diff_div_AB = self.vis_real_A - self.vis_fake_B
-            self.diff_div_BA = self.vis_real_B - self.vis_fake_A
-            self.diff_AB = torch.abs(self.diff_div_AB)
-            self.diff_BA = torch.abs(self.diff_div_BA)
+            # self.diff_div_AB = self.vis_real_A - self.vis_fake_B
+            # self.diff_div_BA = self.vis_real_B - self.vis_fake_A
+            self.diff_AB = torch.abs(self.vis_real_A - self.vis_fake_B)
+            self.diff_BA = torch.abs(self.vis_real_B - self.vis_fake_A)
             
-            self.diff_div_AB = cm.seismic(torch.clamp(self.diff_div_AB, -1, 1).cpu().numpy()[0]) * 2.0 - 1.0
-            self.diff_div_BA = cm.seismic(torch.clamp(self.diff_div_BA, -1, 1).cpu().numpy()[0]) * 2.0 - 1.0
-            self.diff_div_AB = torch.from_numpy(self.diff_div_AB.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
-            self.diff_div_BA = torch.from_numpy(self.diff_div_BA.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
+            # self.diff_div_AB = cm.seismic(torch.clamp(self.diff_div_AB, -1, 1).cpu().numpy()[0]) * 2.0 - 1.0
+            # self.diff_div_BA = cm.seismic(torch.clamp(self.diff_div_BA, -1, 1).cpu().numpy()[0]) * 2.0 - 1.0
+            # self.diff_div_AB = torch.from_numpy(self.diff_div_AB.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
+            # self.diff_div_BA = torch.from_numpy(self.diff_div_BA.transpose(0, 3, 1, 2)[:, :3, :, :]).to(self.device)
             
             self.diff_AB = cm.viridis(self.diff_AB.cpu().numpy()[0]) * 2.0 - 1.0
             self.diff_BA = cm.viridis(self.diff_BA.cpu().numpy()[0]) * 2.0 - 1.0

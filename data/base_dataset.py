@@ -123,7 +123,7 @@ def get_transform_sync(opt, params=None, grayscale=False, ct_domain=False, metho
     if 'crop' in opt.preprocess:
         if params is None or 'crop_pos' not in params:
             # transform_list.append(transforms.RandomCrop(opt.crop_size))
-            transform_list.append(RandomCrop_Sync(opt.crop_size, normal=True))
+            transform_list.append(RandomCropAndPad_Sync(opt.crop_size, normal=True))
         else:
             transform_list.append(transforms.Lambda(lambda x: {'image': __crop(x['image'], params['crop_pos'], opt.crop_size),
                                                                'mask': __crop(x['mask'], params['crop_pos'], opt.crop_size)}))
@@ -158,14 +158,18 @@ def get_3d_transform(opt, params=None, grayscale=False, ct_domain=False, method=
                                                            'mask': x['mask']}))
         
     transform_list.append(transforms.Lambda(lambda x: {'image': torch.Tensor(x['image']),
-                                                           'mask': torch.Tensor(x['mask'])}))
+                                                       'mask': torch.Tensor(x['mask'])}))
+    
     if 'crop' in opt.preprocess:
         if params is None or 'crop_pos' not in params:
             # transform_list.append(transforms.RandomCrop(opt.crop_size))
-            transform_list.append(RandomCrop_Sync(opt.crop_size, normal=True))
+            transform_list.append(RandomCropAndPad_Sync(opt.crop_size, normal=False, padding='zeros'))
         else:
             transform_list.append(transforms.Lambda(lambda x: {'image': __crop(x['image'], params['crop_pos'], opt.crop_size),
                                                                'mask': __crop(x['mask'], params['crop_pos'], opt.crop_size)}))
+    else:
+        # padding
+        transform_list.append(transforms.Lambda(lambda x: __ensure_dividable_by_4(x)))
             
     if not opt.no_flip:
         if params is None or 'flip' not in params:
@@ -182,25 +186,62 @@ def get_3d_transform(opt, params=None, grayscale=False, ct_domain=False, method=
             transform_list.append(transforms.Lambda(lambda x: {'image': transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(x['image']),
                                                                'mask': x['mask']}))
     return transforms.Compose(transform_list)
-        
+       
+       
+def __ensure_dividable_by_4(x):
+    image = x['image']
+    mask = x['mask']
+    sx, sy = image.shape[-2:]
+    base = 4
+    pad_x = base - (sx % base)
+    pad_y = base - (sy % base)
+    if pad_x != base or pad_y != base:
+        pad = (pad_y // 2,
+               pad_x // 2, 
+               pad_y - pad_y // 2,
+               pad_x - pad_x // 2)
+        image = F.pad(image, pad, fill=0)
+        mask = F.pad(mask, pad, fill=0)
+    #print(image.shape)
+    return {'image': image, 'mask': mask}    
 
-class RandomCrop_Sync(object):
-    def __init__(self, crop_size, normal=False):
+class RandomCropAndPad_Sync(object):
+    def __init__(self, crop_size, normal=False, padding='zeros', crop=True):
         self.crop_size = crop_size
         self.normal = normal
+        self.padding = padding
+        self.crop = crop
     
     def __call__(self, x):
         image = x['image']
         mask = x['mask']
+        # shape_in = image.shape
         
-        if self.normal:
-            top = np.clip(np.random.normal(0.5, 0.25), 0, 1) * (image.size[1] - self.crop_size)
-            left = np.clip(np.random.normal(0.5, 0.25), 0, 1) * (image.size[0] - self.crop_size)
-        else:
-            top = random.randint(0, image.size[1] - self.crop_size)
-            left = random.randint(0, image.size[0] - self.crop_size)
-        image = F.crop(image, top, left, self.crop_size, self.crop_size)
-        mask = F.crop(mask, top, left, self.crop_size, self.crop_size)
+        if self.padding == 'zeros':
+            pad_x = max(0, self.crop_size - image.shape[-2])
+            pad_y = max(0, self.crop_size - image.shape[-1])
+
+            if pad_x > 0 or pad_y > 0:
+                pad = (pad_y // 2,
+                       pad_x // 2, 
+                       pad_y - pad_y // 2,
+                       pad_x - pad_x // 2)
+                image = F.pad(image, pad, fill=0)
+                mask = F.pad(mask, pad, fill=0) 
+            
+        # shape_pad = image.shape
+        if self.crop:
+            if self.normal:
+                top = (np.clip(np.random.normal(0.5, 0.25), 0, 1) * (image.shape[-2] - self.crop_size)).astype(int)
+                left = (np.clip(np.random.normal(0.5, 0.25), 0, 1) * (image.shape[-1] - self.crop_size)).astype(int)
+            else:
+                top = random.randint(0, image.shape[-2] - self.crop_size)
+                left = random.randint(0, image.shape[-1] - self.crop_size)
+            image = F.crop(image, top, left, self.crop_size, self.crop_size)
+            mask = F.crop(mask, top, left, self.crop_size, self.crop_size)
+        
+        # shape_crop = image.shape
+        # print(f'in: {shape_in}, pad: {shape_pad}, crop: {shape_crop}, top: {top}, left: {left}, pad_x: {pad_x}, pad_y: {pad_y}')
 
         return {'image': image, 'mask': mask}
     

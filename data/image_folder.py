@@ -42,8 +42,10 @@ def make_dataset(dir, max_dataset_size=float("inf"), mask=False):
 
 def make_3d_dataset(dir, max_dataset_size=float("inf")):
     assert os.path.isdir(dir), '%s is not a valid directory' % dir
-    images = sorted(glob.glob(os.path.join(dir, '*[!_mask].npy')))
-    masks = sorted(glob.glob(os.path.join(dir, '*_mask.npy')))
+    images = sorted(glob.glob(os.path.join(dir, 'images/*.npy')))
+    masks = sorted(glob.glob(os.path.join(dir, 'masks/*.npy')))
+    assert len(images) == len(masks), 'number of images and masks does not match'
+    
     images = images[:min(max_dataset_size, len(images))]
     masks = masks[:min(max_dataset_size, len(images))]
     return images, masks
