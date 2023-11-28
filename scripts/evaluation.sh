@@ -1,6 +1,6 @@
-echo "Testing idt0.1_size512"
-sh scripts/1D/test_volumes.sh "idt0.1_size512" "dataset_4"
-sh scripts/create_dataset_for_segnet.sh "idt0.1_size512"
+# echo "Testing idt0.1_size512"
+# sh scripts/1D/test_volumes.sh "idt0.1_size512" "dataset_4"
+# sh scripts/create_dataset_for_segnet.sh "idt0.1_size512"
 
 echo "Testing idt0.5_size512"
 sh scripts/1D/test_volumes.sh "idt0.5_size512" "dataset_4"

@@ -47,7 +47,8 @@ if __name__ == '__main__':
     sys.stdout = sys.__stdout__ # reactivates print output
     if opt.save_nifti:
         fake_B, real_A = [], []
-    for i, data in tqdm.tqdm(enumerate(dataset), total=len(dataset)):
+        # fake_A = []
+    for i, data in tqdm.tqdm(enumerate(dataset), total=len(dataset), leave=False, position=1, desc=opt.vol_A_path):
         if i >= opt.num_test:  # only apply our model to opt.num_test images.
             break
         model.set_input(data)  # unpack data from data loader
@@ -59,9 +60,11 @@ if __name__ == '__main__':
                 middle_slice = opt.input_nc // 2 # model.fake_B.shape[1] // 2  # visuals['fake_B'].shape[1] // 2
                 fake_B.append(model.fake_B[:, middle_slice, :, :].cpu().numpy().squeeze())
                 real_A.append(model.real_A[:, middle_slice, :, :].cpu().numpy().squeeze())
+                # fake_A.append(model.fake_A[:, middle_slice, :, :].cpu().numpy().squeeze())
             else: 
                 fake_B.append(model.fake_B.cpu().numpy().squeeze())
                 real_A.append(model.real_A.cpu().numpy().squeeze())
+                # fake_A.append(model.fake_A.cpu().numpy().squeeze())
         
         if opt.save_slices:
             img_path = model.get_image_paths()     # get image paths
@@ -77,13 +80,12 @@ if __name__ == '__main__':
         fake_B = ((np.array(fake_B).transpose(1, 2, 0) / 2. + 0.5) * 1600 - 1000).astype(np.int16)
         real_A = ((np.array(real_A).transpose(1, 2, 0) / 2. + 0.5) * 1600 - 1000).astype(np.int16)
         diff_AB = fake_B - real_A
-        #diff_abs_AB = np.abs(diff_AB)
+
+        # fake_A = ((np.array(fake_A).transpose(1, 2, 0) / 2. + 0.5) * 1600 - 1000).astype(np.int16)
+        # nifti_fake_A = nib.Nifti1Image(fake_A, nib.load(opt.vol_A_path).affine)
+        # nib.save(nifti_fake_A, os.path.join(web_dir, f'fake_A_{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
         
-        #nifti_fake_A = nib.Nifti1Image(fake_A, nib.load(opt.vol_B_path).affine)
         nifti_fake_B = nib.Nifti1Image(fake_B, nib.load(opt.vol_A_path).affine)
         nifti_diff_AB = nib.Nifti1Image(diff_AB, nib.load(opt.vol_A_path).affine)
-        #nifti_diff_abs_AB = nib.Nifti1Image(diff_abs_AB, nib.load(opt.vol_A_path).affine)
-        #nib.save(nifti_fake_A, os.path.join(web_dir, f'fake_A_{Path(opt.vol_B_path).stem}.nii.gz'))
         nib.save(nifti_fake_B, os.path.join(web_dir, f'fake_B_{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
         nib.save(nifti_diff_AB, os.path.join(web_dir, f'diff_AB_{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
-        #nib.save(nifti_diff_abs_AB, os.path.join(web_dir, f'diff_abs_AB_{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
