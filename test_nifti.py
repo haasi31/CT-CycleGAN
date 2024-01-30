@@ -7,6 +7,7 @@ from util import html
 import nibabel as nib
 import numpy as np
 import torch
+import torchvision.transforms.functional as F
 import tqdm
 from pathlib import Path
 import sys
@@ -30,17 +31,11 @@ if __name__ == '__main__':
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
 
-    # initialize logger
-    if opt.use_wandb:
-        wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
-        wandb_run._label(repo='CycleGAN-and-pix2pix')
-
     # create a website
-    web_dir = os.path.join(opt.results_dir, opt.name, '{}_{}'.format(opt.phase, opt.epoch), Path(opt.vol_A_path).stem.split('.')[0])  # define the website directory
-    if opt.load_iter > 0:  # load_iter is 0 by default
-        web_dir = '{:s}_iter{:d}'.format(web_dir, opt.load_iter)
-    print('creating web directory', web_dir)
-    webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.epoch))
+    out_dir = opt.results_dir #os.path.join(opt.results_dir, opt.name) #, '{}_{}'.format(opt.phase, opt.epoch)) #, Path(opt.vol_A_path).stem.split('.')[0])  # define the website directory
+    os.makedirs(f'{out_dir}/images', exist_ok=True)
+    os.makedirs(f'{out_dir}/diff', exist_ok=True)
+
     if opt.eval:
         model.eval()
      
@@ -73,13 +68,29 @@ if __name__ == '__main__':
             visuals.pop('rec_B')
             visuals.pop('real_B_mask')
             visuals.pop('diff_BA')
-            save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)
-    webpage.save()  # save the HTML
+            #save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)
+    #webpage.save()  # save the HTML
     
     if opt.save_nifti:
         fake_B = ((np.array(fake_B).transpose(1, 2, 0) / 2. + 0.5) * 1600 - 1000).astype(np.int16)
         real_A = ((np.array(real_A).transpose(1, 2, 0) / 2. + 0.5) * 1600 - 1000).astype(np.int16)
         diff_AB = fake_B - real_A
+        
+        orig_shape = nib.load(opt.vol_A_path).shape[-3:-1]
+        inference_shape = fake_B.shape[-3:-1]
+        
+        pad_x, pad_y = inference_shape[0] - orig_shape[0], inference_shape[1] - orig_shape[1]
+        if pad_x > 0 or pad_y > 0:
+            x_min = pad_x // 2
+            x_max = fake_B.shape[0] - (pad_x - (pad_x // 2))
+            y_min = pad_y // 2
+            y_max = fake_B.shape[1] - (pad_y - (pad_y // 2))
+            
+            fake_B = fake_B[x_min:x_max, y_min:y_max,:]
+            diff_AB = diff_AB[x_min:x_max, y_min:y_max,:]
+            #fake_B = F.crop(fake_B, pad_x // 2, pad_y // 2, orig_shape[0], orig_shape[1])
+            #diff_AB = F.crop(diff_AB, pad_x // 2, pad_y // 2, orig_shape[0], orig_shape[1])
+        
 
         # fake_A = ((np.array(fake_A).transpose(1, 2, 0) / 2. + 0.5) * 1600 - 1000).astype(np.int16)
         # nifti_fake_A = nib.Nifti1Image(fake_A, nib.load(opt.vol_A_path).affine)
@@ -87,5 +98,5 @@ if __name__ == '__main__':
         
         nifti_fake_B = nib.Nifti1Image(fake_B, nib.load(opt.vol_A_path).affine)
         nifti_diff_AB = nib.Nifti1Image(diff_AB, nib.load(opt.vol_A_path).affine)
-        nib.save(nifti_fake_B, os.path.join(web_dir, f'fake_B_{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
-        nib.save(nifti_diff_AB, os.path.join(web_dir, f'diff_AB_{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
+        nib.save(nifti_fake_B, os.path.join(out_dir, 'images', f'{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
+        nib.save(nifti_diff_AB, os.path.join(out_dir, 'diff', f'{Path(opt.vol_A_path).stem.split(".")[0]}.nii.gz'))
