@@ -1,6 +1,6 @@
 experiment_name=dataset_2023_11_15
-slices=3
-lambda=0.1
+slices=1
+lambda=2
 
 set -ex
 
