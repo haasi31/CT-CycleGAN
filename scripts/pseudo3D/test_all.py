@@ -38,7 +38,7 @@ for image_A_path, mask_A_path in tqdm.tqdm(zip(image_A_paths, mask_A_paths), tot
         continue
     
     subprocess.run([
-        'python', '/home/ahaas/pytorch-CycleGAN-and-pix2pix/test_nifti.py',
+        'python', '/home/ahaas/pytorch-CycleGAN-and-pix2pix/test.py',
         '--dataroot', image_A_path, 
         '--name', experiment_name, 
         '--model', 'cycle_gan', 

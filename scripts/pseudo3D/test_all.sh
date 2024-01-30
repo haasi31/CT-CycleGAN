@@ -18,7 +18,7 @@ do
         ATM=257
     fi
     echo "${i}/${num_files} | ATM: ${ATM} | ${path}"
-    python test_nifti.py \
+    python test.py \
     --dataroot /home/ahaas/data/syn2CT_2 \
     --name "$name" \
     --model cycle_gan \

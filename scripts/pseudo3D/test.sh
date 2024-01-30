@@ -1,7 +1,7 @@
 dataset_name=dataset_2023_11_15
 experiment_name=dataset_2023_11_15_1slices_0.5idt
 image=ATM_057_17_0
-python test_nifti.py \
+python test.py \
     --dataroot "/home/ahaas/data/3_deformed_data/${dataset_name}/images/syn_ATM_057_17_0_volume.nii.gz"  \
     --name $experiment_name \
     --model cycle_gan \
