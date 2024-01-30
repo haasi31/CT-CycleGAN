@@ -18,13 +18,21 @@ image_A_paths = sorted(glob.glob(f'/home/ahaas/data/3_deformed_data/{dataset_nam
 mask_A_paths = sorted(glob.glob(f'/home/ahaas/data/3_deformed_data/{dataset_name}/masks/*.nii.gz'))
 
 results_dir = f'/home/ahaas/data/5_out_cyclegan'
+# os.makedirs(f'{results_dir}/{experiment_name}/images', exist_ok=True)
+# os.makedirs(f'{results_dir}/{experiment_name}/diff', exist_ok=True)
 
 for image_A_path, mask_A_path in tqdm.tqdm(zip(image_A_paths, mask_A_paths), total=len(image_A_paths), position=0):
     ATM_scan = image_A_path.split('/')[-1].split('_')[2]
     image_B_path = f'/home/ahaas/data/3_deformed_data/ATM22/train/images/ATM_{ATM_scan}_0_volume.nii.gz'
     mask_B_path = f'/home/ahaas/data/3_deformed_data/ATM22/train/masks/ATM_{ATM_scan}_0_mask.nii.gz'
     
-    fake_out_path = os.path.join(results_dir, experiment_name, 'test_latest', image_A_path.split('/')[-1].split('.')[0], f'fake_B_{image_A_path.split("/")[-1]}')
+    ## validation set if ATM = 257
+    if ATM_scan == '257':
+        current_results_dir = os.path.join(results_dir, experiment_name, 'val')
+    else:
+        current_results_dir = os.path.join(results_dir, experiment_name, 'train')
+        
+    fake_out_path = os.path.join(current_results_dir, 'images', image_A_path.split("/")[-1])
     if os.path.exists(fake_out_path):
         print(f'{image_A_path} already processed, skipping')
         continue
@@ -48,5 +56,5 @@ for image_A_path, mask_A_path in tqdm.tqdm(zip(image_A_paths, mask_A_paths), tot
         '--mask_B_path', mask_B_path,
         '--save_nifti',
         '--pseudo3d',
-        '--results_dir', results_dir
+        '--results_dir', current_results_dir
     ])
