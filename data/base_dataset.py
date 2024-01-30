@@ -193,9 +193,10 @@ def __ensure_dividable_by_4(x):
     mask = x['mask']
     sx, sy = image.shape[-2:]
     base = 4
-    pad_x = base - (sx % base)
-    pad_y = base - (sy % base)
-    if pad_x != base or pad_y != base:
+    pad_x = 0 if sx % base == 0 else base - (sx % base) 
+    pad_y = 0 if sy % base == 0 else base - (sy % base)
+    
+    if pad_x > 0 or pad_y > 0:
         pad = (pad_y // 2,
                pad_x // 2, 
                pad_y - pad_y // 2,
